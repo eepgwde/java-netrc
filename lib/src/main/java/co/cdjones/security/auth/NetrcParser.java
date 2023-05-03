@@ -1,9 +1,5 @@
 package co.cdjones.security.auth;
 
-import lombok.NonNull;
-import lombok.SneakyThrows;
-import lombok.val;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -17,6 +13,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * Simple match on hostname.
+ *
+ * Unfortunately, it does not handle multiple logins at the same host.
+ *
  * @author chrisjones
  * @date 11/10/2017
  */
@@ -39,7 +39,7 @@ public class NetrcParser {
      *
      * @return a {@link NetrcParser} object.
      */
-    public static NetrcParser getInstance() {
+    public static NetrcParser getInstance() throws InvalidPropertiesFormatException {
         File netrc = getDefaultFile();
         return getInstance(netrc);
     }
@@ -50,7 +50,7 @@ public class NetrcParser {
      * @param netrcPath a {@link java.lang.String} object.
      * @return a {@link NetrcParser} object.
      */
-    public static NetrcParser getInstance(@NonNull String netrcPath) {
+    public static NetrcParser getInstance(String netrcPath) throws InvalidPropertiesFormatException {
         File netrc = new File(netrcPath);
         return netrc.exists() ? getInstance(new File(netrcPath)) : null;
     }
@@ -61,7 +61,7 @@ public class NetrcParser {
      * @param netrc a {@link java.io.File} object.
      * @return a {@link NetrcParser} object.
      */
-    public static NetrcParser getInstance(File netrc) {
+    public static NetrcParser getInstance(File netrc) throws InvalidPropertiesFormatException {
         return new NetrcParser(netrc).parse();
     }
 
@@ -78,7 +78,7 @@ public class NetrcParser {
      * @param host a {@link java.lang.String} object.
      * @return a {@link Credentials} object.
      */
-    public synchronized Credentials getCredentials(String host) {
+    public synchronized Credentials getCredentials(String host) throws InvalidPropertiesFormatException {
         if (!this.netrc.exists()) return null;
         if (this.lastModified != this.netrc.lastModified()) parse();
         return this.hosts.get(host);
@@ -88,8 +88,7 @@ public class NetrcParser {
         this.netrc = netrc;
     }
 
-    @SneakyThrows
-    synchronized private NetrcParser parse() {
+    synchronized private NetrcParser parse() throws InvalidPropertiesFormatException {
         if (!netrc.exists()) return this;
 
         this.hosts.clear();
@@ -157,11 +156,7 @@ public class NetrcParser {
                             if (machine != null && login != null && password != null) {
                                 this.hosts.put(
                                     machine,
-                                    Credentials.builder()
-                                        .host(machine)
-                                        .user(login)
-                                        .password(password)
-                                        .build()
+                                    new Credentials(machine, login, password)
                                 );
                             }
                             machine = match;
@@ -190,11 +185,7 @@ public class NetrcParser {
                 if (login != null && password != null) {
                     this.hosts.put(
                         machine,
-                        Credentials.builder()
-                            .host(machine)
-                            .user(login)
-                            .password(password)
-                            .build()
+                            new Credentials(machine, login, password)
                     );
                 }
             }

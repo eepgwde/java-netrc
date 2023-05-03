@@ -3,6 +3,10 @@ A simple, lightweight component to provide .netrc file parsing in Java applicati
 
 I have required this in numerous projects, both simple and complex, so I extracted it from larger libraries for simple use.
 
+## Updated for Kotlin DSL Gradle and Java 11
+
+
+
 ## Usage
 
 ```java
@@ -20,6 +24,9 @@ public class Test {
 ```
 
 ## Getting it
+
+The original java-netrc library can be found with jitpack.io
+
 The artifacts are provided by JitPack. Example usage for Gradle:
 
 ```groovy
