@@ -20,9 +20,21 @@ public class SingleTest {
     }
 
     @Test
-    public void testGetInstanceString() throws InvalidPropertiesFormatException {
+    public void t01Test() throws InvalidPropertiesFormatException {
         NetrcParser netrc = NetrcParser.getInstance();
         assertNotNull(netrc);
+        Credentials c0 = netrc.getCredentials("localhost");
+        assertNotNull(c0);
+        logger.info(String.format("t01Test: %s", c0));
+    }
+
+    @Test
+    public void t03Test() throws InvalidPropertiesFormatException {
+        NetrcParser netrc = NetrcParser.getInstance();
+        assertNotNull(netrc);
+        Credentials c0 = netrc.getCredentials("elvis.69.mu");
+        assertNotNull(c0);
+        logger.info(String.format("t01Test: %s", c0));
     }
 
 }

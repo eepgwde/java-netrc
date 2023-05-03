@@ -9,13 +9,13 @@ import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.InvalidPropertiesFormatException;
 import java.util.Map;
+import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Stack;
 
 /**
  * Simple match on hostname.
- *
+ * <p>
  * Unfortunately, it does not handle multiple logins at the same host.
  * It puts the last identified host, user, password tuple into the hosts.
  *
@@ -24,18 +24,16 @@ import java.util.Stack;
  */
 public class NetrcParser {
     private static final Pattern NETRC_TOKEN = Pattern.compile("(\\S+)");
-
-    private enum ParseState {
-        START, REQ_KEY, REQ_VALUE, MACHINE, LOGIN, PASSWORD, MACDEF, END;
-    }
-    
-    private File netrc;
+    private final File netrc;
     private long lastModified;
-    private Map<String,Credentials> hosts = new HashMap<>();
-    private Map<String,Stack<Credentials>> hosts1 = new HashMap<>();
-
+    private final Map<String, Credentials> hosts = new HashMap<>();
+    private final Map<String, Stack<Credentials>> hosts1 = new HashMap<>();
     // Pattern for detecting comments
-    private Pattern commentPattern = Pattern.compile("(^|\\s)#\\s");
+    private final Pattern commentPattern = Pattern.compile("(^|\\s)#\\s");
+
+    private NetrcParser(File netrc) {
+        this.netrc = netrc;
+    }
 
     /**
      * getInstance.
@@ -92,8 +90,22 @@ public class NetrcParser {
         return this.hosts1.get(host);
     }
 
-    private NetrcParser(File netrc) {
-        this.netrc = netrc;
+    public synchronized Credentials getCredentials1(String host, String user) throws InvalidPropertiesFormatException {
+        Stack<Credentials> stk = this.getCredentials1(host);
+        if (stk == null || stk.size() == 0)
+            throw new InvalidPropertiesFormatException("empty credentials for " + host);
+
+        Credentials result = null;
+        for(Credentials c1 : stk) {
+            if (c1.user().equals(user)) {
+                result = c1;
+                break;
+            }
+        }
+        if (result == null)
+            throw new InvalidPropertiesFormatException("empty credentials for " + host + " ; " + user);
+
+        return(result);
     }
 
     synchronized private NetrcParser parse() throws InvalidPropertiesFormatException {
@@ -142,17 +154,13 @@ public class NetrcParser {
                         case REQ_KEY:
                             if ("login".equals(match)) {
                                 state = ParseState.LOGIN;
-                            }
-                            else if ("password".equals(match)) {
+                            } else if ("password".equals(match)) {
                                 state = ParseState.PASSWORD;
-                            }
-                            else if ("macdef".equals(match)) {
+                            } else if ("macdef".equals(match)) {
                                 state = ParseState.MACDEF;
-                            }
-                            else if ("machine".equals(match)) {
+                            } else if ("machine".equals(match)) {
                                 state = ParseState.MACHINE;
-                            }
-                            else {
+                            } else {
                                 state = ParseState.REQ_VALUE;
                             }
                             break;
@@ -162,12 +170,8 @@ public class NetrcParser {
                             break;
 
                         case MACHINE:
-                            if (machine != null && login != null && password != null) {
-                                this.hosts.put(
-                                    machine,
-                                    new Credentials(machine, login, password)
-                                );
-                            }
+                            if (machine != null && login != null && password != null)
+                                update0(machine, login, password);
                             machine = match;
                             login = null;
                             password = null;
@@ -191,17 +195,7 @@ public class NetrcParser {
                 }
             }
             if (machine != null) {
-                if (login != null && password != null) {
-                    Credentials creds = new Credentials(machine, login, password);
-                    this.hosts.put(
-                        machine, creds
-                    );
-                    if (!this.hosts1.containsKey(machine)) {
-                        this.hosts1.put(machine, new Stack<>());
-                    }
-                    Stack<Credentials> stk = this.hosts1.get(machine);
-                    stk.push(creds);
-                }
+                if (login != null && password != null) update0(machine, login, password);
             }
 
         } catch (IOException e) {
@@ -209,6 +203,22 @@ public class NetrcParser {
         }
 
         return this;
+    }
+
+    protected void update0(String machine, String login, String password) {
+        Credentials creds = new Credentials(machine, login, password);
+        this.hosts.put(
+                machine, creds
+        );
+        if (!this.hosts1.containsKey(machine)) {
+            this.hosts1.put(machine, new Stack<>());
+        }
+        Stack<Credentials> stk = this.hosts1.get(machine);
+        stk.push(creds);
+    }
+
+    private enum ParseState {
+        START, REQ_KEY, REQ_VALUE, MACHINE, LOGIN, PASSWORD, MACDEF, END
     }
 
 }
