@@ -11,11 +11,13 @@ import java.util.InvalidPropertiesFormatException;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Stack;
 
 /**
  * Simple match on hostname.
  *
  * Unfortunately, it does not handle multiple logins at the same host.
+ * It puts the last identified host, user, password tuple into the hosts.
  *
  * @author chrisjones
  * @date 11/10/2017
@@ -30,6 +32,7 @@ public class NetrcParser {
     private File netrc;
     private long lastModified;
     private Map<String,Credentials> hosts = new HashMap<>();
+    private Map<String,Stack<Credentials>> hosts1 = new HashMap<>();
 
     // Pattern for detecting comments
     private Pattern commentPattern = Pattern.compile("(^|\\s)#\\s");
@@ -84,6 +87,11 @@ public class NetrcParser {
         return this.hosts.get(host);
     }
 
+    public synchronized Stack<Credentials> getCredentials1(String host) throws InvalidPropertiesFormatException {
+        this.getCredentials(host);
+        return this.hosts1.get(host);
+    }
+
     private NetrcParser(File netrc) {
         this.netrc = netrc;
     }
@@ -92,6 +100,7 @@ public class NetrcParser {
         if (!netrc.exists()) return this;
 
         this.hosts.clear();
+        this.hosts1.clear();
         this.lastModified = this.netrc.lastModified();
 
         try (BufferedReader r = new BufferedReader(new InputStreamReader(Files.newInputStream(netrc.toPath()), Charset.defaultCharset()))) {
@@ -183,10 +192,15 @@ public class NetrcParser {
             }
             if (machine != null) {
                 if (login != null && password != null) {
+                    Credentials creds = new Credentials(machine, login, password);
                     this.hosts.put(
-                        machine,
-                            new Credentials(machine, login, password)
+                        machine, creds
                     );
+                    if (!this.hosts1.containsKey(machine)) {
+                        this.hosts1.put(machine, new Stack<>());
+                    }
+                    Stack<Credentials> stk = this.hosts1.get(machine);
+                    stk.push(creds);
                 }
             }
 
